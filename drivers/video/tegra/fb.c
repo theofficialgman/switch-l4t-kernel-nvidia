@@ -638,6 +638,7 @@ static int tegra_get_modedb(struct tegra_dc *dc, struct tegra_fb_modedb *modedb,
 
 	list_for_each_entry(modelist, &info->modelist, list) {
 		struct fb_var_screeninfo var;
+		u32 tmp;
 
 		/* fb_videomode_to_var doesn't fill out all the members
 		   of fb_var_screeninfo */
@@ -646,6 +647,22 @@ static int tegra_get_modedb(struct tegra_dc *dc, struct tegra_fb_modedb *modedb,
 		fb_videomode_to_var(&var, &modelist->mode);
 		var.width = tegra_dc_get_out_width(dc);
 		var.height = tegra_dc_get_out_height(dc);
+		if (dc->out && (dc->out->rotation == 90 || dc->out->rotation == 270)) {
+			/* Swap h/v blanking so refresh rate computes correctly for
+			* landscape dims: htotal uses vblanking, vtotal uses hblanking. */
+			tmp = var.xres;
+			var.xres = var.yres;
+			var.yres = tmp;
+			tmp = var.left_margin;
+			var.left_margin  = var.upper_margin;
+			var.upper_margin = tmp;
+			tmp = var.right_margin;
+			var.right_margin  = var.lower_margin;
+			var.lower_margin  = tmp;
+			tmp = var.hsync_len;
+			var.hsync_len = var.vsync_len;
+			var.vsync_len = tmp;
+		}
 		var.bits_per_pixel = dc->pdata->fb->bits_per_pixel;
 		if (i < modedb->modedb_len) {
 			void __user *ptr = &modedb_ptr[i];

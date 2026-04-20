@@ -429,6 +429,16 @@ fail:
 	return -EINVAL;
 }
 
+static u32 tegra_dc_rotation_to_win_flags(unsigned rotation)
+{
+	switch (rotation) {
+	case 90:  return TEGRA_WIN_FLAG_SCAN_COLUMN | TEGRA_WIN_FLAG_INVERT_H;
+	case 180: return TEGRA_WIN_FLAG_INVERT_H | TEGRA_WIN_FLAG_INVERT_V;
+	case 270: return TEGRA_WIN_FLAG_SCAN_COLUMN | TEGRA_WIN_FLAG_INVERT_V;
+	default:  return 0;
+	}
+}
+
 static void tegra_dc_ext_set_windowattr_basic(struct tegra_dc_win *win,
 		       const struct tegra_dc_ext_flip_windowattr *flip_win)
 {
@@ -539,6 +549,30 @@ static int tegra_dc_ext_set_windowattr(struct tegra_dc_ext *ext,
 	}
 
 	tegra_dc_ext_set_windowattr_basic(win, &flip_win->attr);
+
+	/* Force hardware rotation from dc->out->rotation, overriding userspace */
+	if (ext->dc->out) {
+		u32 rot_flags =
+			tegra_dc_rotation_to_win_flags(ext->dc->out->rotation);
+		if (rot_flags) {
+			win->flags &= ~(TEGRA_WIN_FLAG_INVERT_H |
+					TEGRA_WIN_FLAG_INVERT_V |
+					TEGRA_WIN_FLAG_SCAN_COLUMN);
+			win->flags |= rot_flags;
+			if (ext->dc->out->rotation == 90 ||
+			    ext->dc->out->rotation == 270) {
+				/* Hardware always needs portrait physical coords.
+				 * If userspace sent landscape dims (out_w > out_h,
+				 * e.g. 1280x720), swap to portrait (720x1280).
+				 * If already portrait (out_w=720, out_h=1280), no swap. */
+				if (win->out_w > win->out_h) {
+					u32 tmp = win->out_w;
+					win->out_w = win->out_h;
+					win->out_h = tmp;
+				}
+			}
+		}
+	}
 
 	memcpy(ext_win->cur_handle, flip_win->handle,
 	       sizeof(ext_win->cur_handle));
@@ -1437,16 +1471,37 @@ static int sanitize_flip_args(struct tegra_dc_ext_user *user,
 
 		/*
 		 * Window output geometry including width/height + offset
-		 * should not exceed hActive/vActive of current mode
+		 * should not exceed hActive/vActive of current mode.
+		 * For 90/270° rotated panels, userspace may send either portrait
+		 * dims (if it reads DC hardware, rasterSize=720x1280) or landscape
+		 * dims (if it reads FBIOGET_VSCREENINFO, rasterSize=1280x720).
+		 * Accept whichever fits; set_windowattr will translate to portrait.
 		 */
-		if ((win->out_w + win->out_x) > dc->mode.h_active ||
-			(win->out_h + win->out_y) > dc->mode.v_active) {
-
-			dev_err(&dc->ndev->dev,
-			"Invalid out_w + out_x (%u) > hActive (%u)\n OR/AND out_h + out_y (%u) > vActive (%u)\n for WIN %d\n",
-				win->out_w + win->out_x, dc->mode.h_active,
-				win->out_h + win->out_y, dc->mode.v_active, i);
-			return -EINVAL;
+		if (dc->out && (dc->out->rotation == 90 ||
+				dc->out->rotation == 270)) {
+			bool portrait_valid =
+				(win->out_w + win->out_x) <= dc->mode.h_active &&
+				(win->out_h + win->out_y) <= dc->mode.v_active;
+			bool landscape_valid =
+				(win->out_w + win->out_x) <= dc->mode.v_active &&
+				(win->out_h + win->out_y) <= dc->mode.h_active;
+			if (!portrait_valid && !landscape_valid) {
+				dev_err(&dc->ndev->dev,
+				"Invalid out_w+out_x (%u) out_h+out_y (%u) vs hActive (%u) vActive (%u) for WIN %d\n",
+					win->out_w + win->out_x,
+					win->out_h + win->out_y,
+					dc->mode.h_active, dc->mode.v_active, i);
+				return -EINVAL;
+			}
+		} else {
+			if ((win->out_w + win->out_x) > dc->mode.h_active ||
+				(win->out_h + win->out_y) > dc->mode.v_active) {
+				dev_err(&dc->ndev->dev,
+				"Invalid out_w + out_x (%u) > hActive (%u)\n OR/AND out_h + out_y (%u) > vActive (%u)\n for WIN %d\n",
+					win->out_w + win->out_x, dc->mode.h_active,
+					win->out_h + win->out_y, dc->mode.v_active, i);
+				return -EINVAL;
+			}
 		}
 
 		if (tegra_dc_is_nvdisplay()) {
