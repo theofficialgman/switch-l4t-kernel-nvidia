@@ -209,7 +209,29 @@ int tegra_dc_ext_set_cursor(struct tegra_dc_ext_user *user,
 
 	tegra_dc_scrncapt_disp_pause_lock(dc);
 
-	ret = tegra_dc_cursor_set(dc, enable, args->x, args->y);
+	{
+		int phys_x = args->x;
+		int phys_y = args->y;
+
+		if (dc->out) {
+			switch (dc->out->rotation) {
+			case 90:
+				phys_x = args->y;
+				phys_y = (int)dc->mode.v_active - 1 - args->x;
+				break;
+			case 180:
+				phys_x = (int)dc->mode.h_active - 1 - args->x;
+				phys_y = (int)dc->mode.v_active - 1 - args->y;
+				break;
+			case 270:
+				phys_x = (int)dc->mode.h_active - 1 - args->y;
+				phys_y = args->x;
+				break;
+			}
+		}
+
+		ret = tegra_dc_cursor_set(dc, enable, phys_x, phys_y);
+	}
 
 	tegra_dc_scrncapt_disp_pause_unlock(dc);
 	mutex_unlock(&ext->cursor.lock);
