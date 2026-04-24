@@ -3909,6 +3909,8 @@ void tegra_dc_ext_unregister(struct tegra_dc_ext *ext)
 {
 	int i;
 
+	tegra_dc_ext_cursor_cleanup(ext);
+
 	for (i = 0; i < ext->dc->n_windows; i++) {
 		struct tegra_dc_ext_win *win = &ext->win[i];
 

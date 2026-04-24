@@ -84,6 +84,10 @@ struct tegra_dc_ext {
 	struct {
 		struct tegra_dc_ext_user	*user;
 		struct tegra_dc_dmabuf		*cur_handle;
+		/* DMA-coherent scratch buffer for the rotated cursor bitmap */
+		void				*rot_vaddr;
+		dma_addr_t			rot_dma;
+		size_t				rot_size;
 		struct mutex			lock;
 	} cursor;
 
@@ -153,6 +157,7 @@ extern int tegra_dc_ext_cpy_caps_from_user(void __user *user_arg,
 				struct tegra_dc_ext_caps **caps_ptr,
 				u32 *nr_elements_ptr);
 
+extern void tegra_dc_ext_cursor_cleanup(struct tegra_dc_ext *ext);
 extern int tegra_dc_ext_get_cursor(struct tegra_dc_ext_user *user);
 extern int tegra_dc_ext_put_cursor(struct tegra_dc_ext_user *user);
 extern int tegra_dc_ext_set_cursor_image(struct tegra_dc_ext_user *user,
