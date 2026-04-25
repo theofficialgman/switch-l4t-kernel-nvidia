@@ -449,6 +449,12 @@ static inline void __maybe_unused tegra_dc_update_scaling(
 bool  update_is_hsync_safe(struct tegra_dc_win *cur_win,
 			   struct tegra_dc_win *new_win)
 {
+	/* SCAN_COLUMN reads memory in column-major order. A buffer address
+	 * change mid-column produces a diagonal tear in landscape-user space,
+	 * so treat every SCAN_COLUMN flip as requiring a full vblank. */
+	if ((cur_win->flags | new_win->flags) & TEGRA_WIN_FLAG_SCAN_COLUMN)
+		return false;
+
 	return ((cur_win->fmt == new_win->fmt) &&
 		(cur_win->flags == new_win->flags) &&
 		(dfixed_trunc(cur_win->x) == dfixed_trunc(new_win->x)) &&
