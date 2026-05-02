@@ -188,6 +188,11 @@ static int tegra_fb_check_var(struct fb_var_screeninfo *var,
 		}
 	}
 
+	dev_info(&tegra_fb->ndev->dev,
+		"[tegra-fb] check_var from '%s': xres=%u yres=%u bpp=%u pixclock=%u rotation=%d\n",
+		current->comm, var->xres, var->yres, var->bits_per_pixel,
+		var->pixclock, dc->out ? dc->out->rotation : 0);
+
 	if (tegra_fb->valid &&
 		(var->yres * var->xres * var->bits_per_pixel /
 		 8 * FB_BUFFERING_FACTOR) > info->screen_size) {
@@ -245,6 +250,11 @@ static int tegra_fb_set_par(struct fb_info *info)
 			var->vsync_len = tmp;
 		}
 	}
+
+	dev_info(&tegra_fb->ndev->dev,
+		"[tegra-fb] set_par from '%s': xres=%u yres=%u bpp=%u pixclock=%u\n",
+		current->comm, var->xres, var->yres,
+		var->bits_per_pixel, var->pixclock);
 
 	if (var->bits_per_pixel) {
 		/* we only support RGB ordering for now */
@@ -651,6 +661,10 @@ static int tegra_get_modedb(struct tegra_dc *dc, struct tegra_fb_modedb *modedb,
 	struct fb_var_screeninfo __user *modedb_ptr = NULL;
 	struct fb_modelist *modelist = NULL;
 
+	dev_info(&dc->ndev->dev,
+		"[tegra-fb] FBIO_TEGRA_GET_MODEDB from '%s': requested_len=%u\n",
+		current->comm, modedb->modedb_len);
+
 	i = 0;
 
 	if (list_empty(&info->modelist)) {
@@ -702,6 +716,10 @@ static int tegra_get_modedb(struct tegra_dc *dc, struct tegra_fb_modedb *modedb,
 			var.vsync_len = tmp;
 		}
 		var.bits_per_pixel = dc->pdata->fb->bits_per_pixel;
+		dev_info(&dc->ndev->dev,
+			"[tegra-fb] modedb[%u]: %ux%u@%u pixclock=%u\n",
+			i, var.xres, var.yres, modelist->mode.refresh,
+			var.pixclock);
 		if (i < modedb->modedb_len) {
 			void __user *ptr = &modedb_ptr[i];
 
@@ -735,6 +753,9 @@ static int tegra_fb_ioctl(struct fb_info *info,
 	struct tegra_dc *dc = tegra_fb->win.dc;
 	struct tegra_fb_modedb __user modedb;
 	struct fb_vblank vblank = {};
+
+	dev_info(&tegra_fb->ndev->dev,
+		"[tegra-fb] ioctl from '%s': cmd=0x%x\n", current->comm, cmd);
 
 	switch (cmd) {
 #ifdef CONFIG_COMPAT
@@ -1413,6 +1434,18 @@ struct tegra_fb_info *tegra_fb_register(struct platform_device *ndev,
 		dc->out_ops->vrr_update_monspecs(dc, &info->modelist);
 
 	tegra_fb_set_par(info);
+
+	dev_info(&ndev->dev,
+		"[tegra-fb] registering fb: xres=%u yres=%u bpp=%u pixclock=%u rotation=%d\n"
+		"[tegra-fb]   var: left=%u right=%u hsync=%u upper=%u lower=%u vsync=%u\n"
+		"[tegra-fb]   DC mode: h_active=%u v_active=%u (FBIOGET_VSCREENINFO will return these)\n",
+		info->var.xres, info->var.yres, info->var.bits_per_pixel,
+		info->var.pixclock,
+		dc->out ? dc->out->rotation : 0,
+		info->var.left_margin, info->var.right_margin,
+		info->var.hsync_len, info->var.upper_margin,
+		info->var.lower_margin, info->var.vsync_len,
+		dc->mode.h_active, dc->mode.v_active);
 
 	if (register_framebuffer(info)) {
 		dev_err(&ndev->dev, "failed to register framebuffer\n");

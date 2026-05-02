@@ -2931,7 +2931,38 @@ static long tegra_dc_ioctl(struct file *filp, unsigned int cmd,
 {
 	void __user *user_arg = (void __user *)arg;
 	struct tegra_dc_ext_user *user = filp->private_data;
+	struct tegra_dc *_log_dc = user->ext->dc;
 	int ret;
+
+	/* Log every ioctl that reads display state so we can see what
+	 * userspace (e.g. the NVIDIA Xorg driver) is querying. */
+	switch (cmd) {
+	case TEGRA_DC_EXT_GET_WINDOW:
+	case TEGRA_DC_EXT_GET_WINMASK:
+	case TEGRA_DC_EXT_GET_VBLANK_SYNCPT:
+	case TEGRA_DC_EXT_GET_STATUS:
+	case TEGRA_DC_EXT_GET_CMU:
+	case TEGRA_DC_EXT_GET_CUSTOM_CMU:
+	case TEGRA_DC_EXT_GET_CMU_ADBRGB:
+	case TEGRA_DC_EXT_GET_NVDISP_CMU:
+	case TEGRA_DC_EXT_GET_CUSTOM_NVDISP_CMU:
+	case TEGRA_DC_EXT_GET_IMP_USER_INFO:
+	case TEGRA_DC_EXT_GET_CAP_INFO:
+	case TEGRA_DC_EXT_GET_SCANLINE:
+		dev_info(&_log_dc->ndev->dev,
+			"[tegra-dc-ext] GET ioctl 0x%x from '%s' on DC%d (enabled=%d mode=%dx%d)\n",
+			cmd, current->comm, _log_dc->ctrl_num,
+			_log_dc->enabled,
+			_log_dc->mode.h_active, _log_dc->mode.v_active);
+		break;
+	case TEGRA_DC_EXT_GET_CURSOR:
+		dev_info(&_log_dc->ndev->dev,
+			"[tegra-dc-ext] GET_CURSOR from '%s' on DC%d\n",
+			current->comm, _log_dc->ctrl_num);
+		break;
+	default:
+		break;
+	}
 
 	switch (cmd) {
 	case TEGRA_DC_EXT_SET_NVMAP_FD:
