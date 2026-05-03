@@ -168,6 +168,25 @@ static int tegra_fb_check_var(struct fb_var_screeninfo *var,
 	struct tegra_dc *dc = tegra_fb->win.dc;
 	struct tegra_dc_out_ops *ops = dc->out_ops;
 	struct fb_videomode mode;
+	u32 tmp;
+
+	if (dc->out && (dc->out->rotation == 90 || dc->out->rotation == 270)) {
+		if (var->xres > var->yres) {
+			/* Swap dimensions back to native if they have been modified by userspace */
+			tmp = var->xres;
+			var->xres = var->yres;
+			var->yres = tmp;
+			tmp = var->left_margin;
+			var->left_margin  = var->upper_margin;
+			var->upper_margin = tmp;
+			tmp = var->right_margin;
+			var->right_margin  = var->lower_margin;
+			var->lower_margin  = tmp;
+			tmp = var->hsync_len;
+			var->hsync_len = var->vsync_len;
+			var->vsync_len = tmp;
+		}
+	}
 
 	if (tegra_fb->valid &&
 		(var->yres * var->xres * var->bits_per_pixel /
@@ -207,6 +226,25 @@ static int tegra_fb_set_par(struct fb_info *info)
 	struct tegra_fb_info *tegra_fb = info->par;
 	struct fb_var_screeninfo *var = &info->var;
 	struct tegra_dc *dc = tegra_fb->win.dc;
+	u32 tmp;
+
+	if (dc->out && (dc->out->rotation == 90 || dc->out->rotation == 270)) {
+		if (var->xres > var->yres) {
+			/* Swap dimensions back to native if they have been modified by userspace */
+			tmp = var->xres;
+			var->xres = var->yres;
+			var->yres = tmp;
+			tmp = var->left_margin;
+			var->left_margin  = var->upper_margin;
+			var->upper_margin = tmp;
+			tmp = var->right_margin;
+			var->right_margin  = var->lower_margin;
+			var->lower_margin  = tmp;
+			tmp = var->hsync_len;
+			var->hsync_len = var->vsync_len;
+			var->vsync_len = tmp;
+		}
+	}
 
 	if (var->bits_per_pixel) {
 		/* we only support RGB ordering for now */
